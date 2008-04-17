@@ -2,7 +2,7 @@
   <parent>
     <groupId>org.mortbay.jetty</groupId>
     <artifactId>jetty-project</artifactId>
-    <version>7.0-SNAPSHOT</version>
+    <version>7.0.0pre0</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
@@ -20,6 +20,7 @@
     <module>jetty-threadpool</module>
     <module>jetty-maven-jspc-plugin</module>
     <module>jetty-maven-plugin</module>
+    <module>maven-jetty-plugin</module>
     <module>jetty-runner</module>
     <module>cometd</module>
   </modules>
