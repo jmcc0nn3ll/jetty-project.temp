@@ -30,7 +30,7 @@ public class JDBCSessionServerTest extends AbstractSessionTest
 
         public void configureEnvironment()
         {
-           System.setProperty("derby.system.home", System.getProperty("java.io.tmpdir"));
+           System.setProperty("derby.system.home", System.getProperty("basedir") + "/target/test-db");
         }
 
         public void configureIdManager()
@@ -44,12 +44,14 @@ public class JDBCSessionServerTest extends AbstractSessionTest
         public void configureSessionManager1()
         {
            JDBCSessionManager mgr1 = new JDBCSessionManager();
+           mgr1.setSaveInterval(10);
            _sessionMgr1 = mgr1;
         }
 
         public void configureSessionManager2()
         {
             JDBCSessionManager mgr2 = new JDBCSessionManager();
+            mgr2.setSaveInterval(10);
             _sessionMgr2 = mgr2;
         }
     }

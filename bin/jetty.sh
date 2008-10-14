@@ -123,7 +123,6 @@ shift
 ARGS="$*"
 CONFIGS=""
 NO_START=0
-TMP=/tmp
 
 ##################################################
 # See if there's a default configuration file
@@ -142,6 +141,14 @@ if [ -f $HOME/.jettyrc ] ; then
   . $HOME/.jettyrc
 fi
 
+##################################################
+# Set tmp if not already set.
+##################################################
+
+if [ -z "$TMP" ] 
+then
+  TMP=/tmp
+fi
 
 ##################################################
 # Jetty's hallmark
@@ -508,8 +515,14 @@ case "$ACTION" in
 
           if [ -f $JETTY_PID ]
           then
-            echo "Already Running!!"
-            exit 1
+            if running $JETTY_PID
+            then
+              echo "Already Running!!"
+              exit 1
+            else
+              # dead pid file - remove
+              rm -f $JETTY_PID
+            fi
           fi
 
           if [ x$JETTY_USER != x ] 
@@ -597,8 +610,14 @@ case "$ACTION" in
 
         if [ -f $JETTY_PID ]
         then
-            echo "Already Running!!"
-            exit 1
+            if running $JETTY_PID
+            then
+              echo "Already Running!!"
+              exit 1
+            else
+              # dead pid file - remove
+              rm -f $JETTY_PID
+            fi
         fi
 
         exec $RUN_CMD

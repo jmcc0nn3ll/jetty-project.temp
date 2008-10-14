@@ -21,6 +21,7 @@ import java.util.Queue;
 
 import org.cometd.Bayeux;
 import org.cometd.Client;
+import org.cometd.DeliverListener;
 import org.cometd.Extension;
 import org.cometd.ClientListener;
 import org.cometd.Message;
@@ -29,6 +30,7 @@ import org.cometd.QueueListener;
 import org.cometd.RemoveListener;
 import org.mortbay.util.ArrayQueue;
 import org.mortbay.util.LazyList;
+import org.mortbay.util.ajax.JSON;
 
 /* ------------------------------------------------------------ */
 /**
@@ -42,17 +44,21 @@ public class ClientImpl implements Client
     private int _responsesPending;
     private ChannelImpl[] _subscriptions=new ChannelImpl[0]; // copy on write
     private boolean _JSONCommented;
-    private RemoveListener[] _rListeners=new RemoveListener[0]; // copy on write
-    private MessageListener[] _syncMListeners=new MessageListener[0]; // copy on write
-    private MessageListener[] _asyncMListeners=new MessageListener[0]; // copy on write
-    private QueueListener[] _qListeners=new QueueListener[0]; // copy on write
+    private RemoveListener[] _rListeners; // copy on write
+    private MessageListener[] _syncMListeners; // copy on write
+    private MessageListener[] _asyncMListeners; // copy on write
+    private QueueListener[] _qListeners; // copy on write
+    private DeliverListener[] _dListeners; // copy on write
     protected AbstractBayeux _bayeux;
     private String _browserId;
-    private int _adviseVersion;
+    private JSON.Literal _advice;
     private int _batch;
     private int _maxQueue;
     private ArrayQueue<Message> _queue=new ArrayQueue<Message>(8,16,this);
     private long _timeout;
+    
+    // manipulated and synchronized by AbstractBayeux
+    int _adviseVersion;
 
     /* ------------------------------------------------------------ */
     protected ClientImpl(AbstractBayeux bayeux)
@@ -109,7 +115,7 @@ public class ClientImpl implements Client
             else
             { 
                 boolean add=_maxQueue>0;
-                if (_queue.size()>=_maxQueue)
+                if (_queue.size()>=_maxQueue && _qListeners!=null)
                 {
                     for (QueueListener l:_qListeners)
                     {
@@ -119,20 +125,33 @@ public class ClientImpl implements Client
                     
                 if (add)
                     _queue.addUnsafe(message);
-            }               
-            
-            if (_batch==0 &&  _responsesPending<1)
-                resume();
+            }    
 
             // deliver unsynchronized
-            for (MessageListener l:_syncMListeners)
-                l.deliver(from,this,message);
+            if (_syncMListeners!=null)
+                for (MessageListener l:_syncMListeners)
+                    l.deliver(from,this,message);
             alisteners=_asyncMListeners;
+             
+            if (_batch==0 &&  _responsesPending<1 && _queue.size()>0)
+                resume();
         }
         
         // deliver unsynchronized
-        for (MessageListener l:alisteners)
-            l.deliver(from,this,message);
+        if (alisteners!=null)
+            for (MessageListener l:alisteners)
+                l.deliver(from,this,message);
+    }
+
+    /* ------------------------------------------------------------ */
+    public void doDeliverListeners()
+    {
+        synchronized (this)
+        {
+            if (_dListeners!=null)
+                for (DeliverListener l:_dListeners)
+                    l.deliver(this,_queue);
+        }
     }
 
 
@@ -374,22 +393,24 @@ public class ClientImpl implements Client
 
     /* ------------------------------------------------------------ */
     /**
-     * @return the advised
+     * Get the advice specific for this Client
+     * @return advice specific for this client or null
      */
-    public int getAdviceVersion()
+    public JSON.Literal getAdvice()
     {
-    	return _adviseVersion;
+    	return _advice;
     }
 
     /* ------------------------------------------------------------ */
     /**
-     * @param advised the advised to set
+     * @param advice specific for this client
      */
-    public void setAdviceVersion(int version)
+    public void setAdvice(JSON.Literal advice)
     {
-    	_adviseVersion=version;
+    	_advice=advice;
     }
-
+    
+    
     /* ------------------------------------------------------------ */
     public void addListener(ClientListener listener)
     {

@@ -48,6 +48,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.mortbay.io.Buffer;
+import org.mortbay.jetty.Dispatcher;
 import org.mortbay.jetty.Handler;
 import org.mortbay.jetty.HandlerContainer;
 import org.mortbay.jetty.HttpConnection;
@@ -55,7 +56,6 @@ import org.mortbay.jetty.HttpException;
 import org.mortbay.jetty.MimeTypes;
 import org.mortbay.jetty.Request;
 import org.mortbay.jetty.Server;
-import org.mortbay.jetty.webapp.WebAppClassLoader;
 import org.mortbay.log.Log;
 import org.mortbay.log.Logger;
 import org.mortbay.resource.Resource;
@@ -224,7 +224,8 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
      * matching virtual host name.
      * @param vhosts Array of virtual hosts that this context responds to. A
      * null host name or null/empty array means any hostname is acceptable.
-     * Host names may String representation of IP addresses.
+     * Host names may be String representation of IP addresses. Host names may
+     * start with '*.' to wildcard one level of names.
      */
     public void setVirtualHosts( String[] vhosts )
     {
@@ -250,6 +251,7 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
      * @return Array of virtual hosts that this context responds to. A
      * null host name or empty array means any hostname is acceptable.
      * Host names may be String representation of IP addresses.
+     * Host names may start with '*.' to wildcard one level of names.
      */
     public String[] getVirtualHosts()
     {
@@ -676,7 +678,15 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
                 
                 // TODO non-linear lookup
                 for (int i=0;!match && i<_vhosts.length;i++)
-                    match=_vhosts[i]!=null && _vhosts[i].equalsIgnoreCase(vhost);
+                {
+                    String contextVhost = _vhosts[i];
+                    if(contextVhost==null) continue;
+                    if(contextVhost.startsWith("*.")) {
+                        // wildcard only at the beginning, and only for one additional subdomain level
+                        match=contextVhost.regionMatches(true,2,vhost,vhost.indexOf(".")+1,contextVhost.length()-2);
+                    } else
+                        match=contextVhost.equalsIgnoreCase(vhost);
+                }
                 if (!match)
                     return;
             }
@@ -990,8 +1000,6 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
     public void setDisplayName(String servletContextName)
     {
         _displayName = servletContextName;
-        if (_classLoader!=null && _classLoader instanceof WebAppClassLoader)
-            ((WebAppClassLoader)_classLoader).setName(servletContextName);
     }
     
     /* ------------------------------------------------------------ */
@@ -1376,7 +1384,41 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
         {
             return null;
         }
+        /* ------------------------------------------------------------ */
+        /* 
+         * @see javax.servlet.ServletContext#getRequestDispatcher(java.lang.String)
+         */
+        public RequestDispatcher getRequestDispatcher(String uriInContext)
+        {
+            if (uriInContext == null)
+                return null;
 
+            if (!uriInContext.startsWith("/"))
+                return null;
+            
+            try
+            {
+                String query=null;
+                int q=0;
+                if ((q=uriInContext.indexOf('?'))>0)
+                {
+                    query=uriInContext.substring(q+1);
+                    uriInContext=uriInContext.substring(0,q);
+                }
+                if ((q=uriInContext.indexOf(';'))>0)
+                    uriInContext=uriInContext.substring(0,q);
+
+                String pathInContext=URIUtil.canonicalPath(URIUtil.decodePath(uriInContext));
+                String uri=URIUtil.addPaths(getContextPath(), uriInContext);
+                ContextHandler context=ContextHandler.this;
+                return new Dispatcher(context,uri, pathInContext, query);
+            }
+            catch(Exception e)
+            {
+                Log.ignore(e);
+            }
+            return null;
+        }
         /* ------------------------------------------------------------ */
         /* 
          * @see javax.servlet.ServletContext#getRealPath(java.lang.String)
@@ -1405,15 +1447,6 @@ public class ContextHandler extends HandlerWrapper implements Attributes, Server
                 Log.ignore(e);
             }
             
-            return null;
-        }
-
-        /* ------------------------------------------------------------ */
-        /* 
-         * @see javax.servlet.ServletContext#getRequestDispatcher(java.lang.String)
-         */
-        public RequestDispatcher getRequestDispatcher(String uriInContext)
-        {
             return null;
         }
 
