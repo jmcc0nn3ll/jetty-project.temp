@@ -17,7 +17,6 @@ package org.mortbay.jetty.ajp;
 import java.io.IOException;
 
 import org.mortbay.io.Buffer;
-import org.mortbay.io.Buffers;
 import org.mortbay.io.ByteArrayBuffer;
 import org.mortbay.io.ByteArrayEndPoint;
 import org.mortbay.io.EndPoint;
@@ -483,9 +482,8 @@ public class TestAjpParser extends TestCase
     {
         StringBuffer body = new StringBuffer("");
         
-        body.append("1234000400022d2d2d2d2d2d2d2d");
-        body.append("0d0a");
-       
+        body.append("123400042d2d0d0a");
+        
         return  body.toString();
         
     }
